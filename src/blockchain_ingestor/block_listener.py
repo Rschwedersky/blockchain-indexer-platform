@@ -19,7 +19,7 @@ class BlockListener:
 
         return block
 
-    def listen_blocks(self):
+    def listen(self):
         if self.last_block is None:
             self.last_block = self.get_latest_block_number()
 

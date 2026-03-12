@@ -12,7 +12,7 @@ def test_build_transaction_event():
         "gas": 21000,
     }
 
-    event = builder.build_transaction_event(1, tx)
+    event = builder.build_transaction_event(tx, 1)
 
     assert event["tx_hash"] == "0x123"
     assert event["block_number"] == 1

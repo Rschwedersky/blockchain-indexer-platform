@@ -3,24 +3,38 @@ from dotenv import load_dotenv
 
 from .ethereum_client import EthereumClient
 from .block_listener import BlockListener
+from .logs_listener import LogsListener
 from .event_builder import EventBuilder
+
+
+def get_field(obj, key):
+    if isinstance(obj, dict):
+        return obj[key]
+    return getattr(obj, key)
 
 
 def run():
     load_dotenv()
 
-    rpc = os.getenv("ETHEREUM_RPC")
+    rpc_url = os.getenv("ETHEREUM_RPC")
 
-    client = EthereumClient(rpc)
-    listener = BlockListener(client)
+    client = EthereumClient(rpc_url)
+
+    block_listener = BlockListener(client)
+    logs_listener = LogsListener(client)
+
     builder = EventBuilder()
 
-    block = listener.fetch_block()
+    for block in block_listener.listen():
+        block_event = builder.build_block_event(block)
+        print(block_event)
 
-    events = builder.build_events_from_block(block)
+        for tx in block.transactions[:5]:
+            tx_event = builder.build_transaction_event(tx, block["number"])
+            print(tx_event)
 
-    for event in events[:5]:
-        print(event)
+        logs = logs_listener.get_block_logs(block["number"])
+        print(f"logs found: {len(logs)}")
 
 
 if __name__ == "__main__":

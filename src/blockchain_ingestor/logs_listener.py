@@ -1,7 +1,11 @@
 ERC20_TRANSFER_TOPIC = "0xddf252ad"
 
 
-def get_transfer_logs(client, from_block, to_block):
-    logs = client.get_logs(from_block, to_block, topics=[ERC20_TRANSFER_TOPIC])
+class LogsListener:
+    def __init__(self, client):
+        self.client = client
 
-    return logs
+    def get_block_logs(self, block_number):
+        logs = self.client.get_logs(block_number, block_number)
+
+        return logs

@@ -7,15 +7,19 @@ class EventBuilder:
             "tx_count": len(block["transactions"]),
         }
 
-    def build_transaction_event(self, block_number, tx):
+    def build_transaction_event(self, tx, block_number):
+        tx_hash = tx["hash"]
+        if hasattr(tx_hash, "hex"):
+            tx_hash = tx_hash.hex()
+
         return {
             "type": "transaction",
             "block_number": block_number,
-            "tx_hash": tx["hash"].hex() if hasattr(tx["hash"], "hex") else tx["hash"],
-            "from": tx.get("from"),
-            "to": tx.get("to"),
-            "value": tx.get("value"),
-            "gas": tx.get("gas"),
+            "tx_hash": tx_hash,
+            "from": tx["from"],
+            "to": tx["to"],
+            "value": tx["value"],
+            "gas": tx["gas"],
         }
 
     def build_events_from_block(self, block):

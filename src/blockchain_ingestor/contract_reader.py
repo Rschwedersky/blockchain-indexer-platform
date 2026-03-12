@@ -11,9 +11,13 @@ ERC20_ABI = [
 ]
 
 
-def get_total_supply(client, token_address):
-    contract = client.w3.eth.contract(
-        address=Web3.to_checksum_address(token_address), abi=ERC20_ABI
-    )
+class ContractReader:
+    def __init__(self, client):
+        self.client = client
 
-    return contract.functions.totalSupply().call()
+    def get_total_supply(self, token_address):
+        contract = self.client.w3.eth.contract(
+            address=Web3.to_checksum_address(token_address), abi=ERC20_ABI
+        )
+
+        return contract.functions.totalSupply().call()
