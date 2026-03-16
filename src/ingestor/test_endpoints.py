@@ -1,4 +1,4 @@
-from blockchain_ingestor.ethereum_client import EthereumClient
+from ingestor.ethereum_client import EthereumClient
 import os
 from dotenv import load_dotenv
 

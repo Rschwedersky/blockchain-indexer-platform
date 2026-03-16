@@ -1,4 +1,4 @@
-src/blockchain_ingestor
+src/ingestor
 
 ethereum_client.py
       ↓

@@ -1,4 +1,4 @@
-from blockchain_ingestor.event_builder import EventBuilder
+from ingestor.event_builder import EventBuilder
 
 
 def test_build_transaction_event():

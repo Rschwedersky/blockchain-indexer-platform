@@ -1,5 +1,5 @@
-from blockchain_ingestor.block_listener import BlockListener
-from blockchain_ingestor.ethereum_client import EthereumClient
+from ingestor.block_listener import BlockListener
+from ingestor.ethereum_client import EthereumClient
 import os
 
 

@@ -1,5 +1,5 @@
 import os
-from blockchain_ingestor.ethereum_client import EthereumClient
+from ingestor.ethereum_client import EthereumClient
 
 
 def test_connection():

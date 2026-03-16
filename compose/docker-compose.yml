@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  kafka:
+    image: apache/kafka:4.0.0 # Stable KRaft-ready version (~223 MB); use :latest or check hub.docker.com/r/apache/kafka for newer
+    container_name: kafka
+    ports:
+      - "9092:9092" # Expose to host for testing (e.g., kafka-python from your machine)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller # Combined mode: single container does both
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2QkJGMjM0QkZDMDhGN0U1QkQ= # Fixed random UUID (base64); generate once if you want unique
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs # Persist metadata & logs
+
+  postgres:
+    image: postgres:16-alpine # Lightweight Alpine variant (~100-150 MB compressed)
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: blockchain_indexer # Your DB name
+      POSTGRES_USER: indexer_user # Change if you want
+      POSTGRES_PASSWORD: secure_password # Change this in production!
+    ports:
+      - "5432:5432" # Expose to host (connect with pgAdmin/DBeaver from your PC)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist your blockchain data forever
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U indexer_user -d blockchain_indexer" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # === Your services - uncomment one by one as you implement them ===
+
+  # ingestor:                                 # Produces raw logs/events to Kafka
+  #   build: ./src/ingestor
+  #   container_name: ingestor
+  #   command: python -m ingestor.main --chain ethereum --start-block latest  # Adjust to your actual entrypoint
+  #   depends_on:
+  #     - kafka
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     # Add RPC_URL, chain config, etc. as needed
+  #   restart: unless-stopped
+
+  # normalizer:                               # Normalizes events, produces to 'normalized-events'
+  #   build: ./src/normalizer
+  #   container_name: normalizer
+  #   depends_on:
+  #     - kafka
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   restart: unless-stopped
+
+  # decoder:                                  # Decodes ERC20/ERC721 transfers
+  #   build: ./src/decoder
+  #   container_name: decoder
+  #   depends_on:
+  #     - kafka
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   restart: unless-stopped
+
+  # sink:                                     # Future: writes enriched data to Postgres (uncomment when ready)
+  #   build: ./src/sink  # or add to one of the above services
+  #   depends_on:
+  #     - kafka
+  #     - postgres
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_DB: blockchain_indexer
+  #     POSTGRES_USER: indexer_user
+  #     POSTGRES_PASSWORD: secure_password
+  #   restart: unless-stopped
+
+volumes:
+  kafka_data:
+  postgres_data:
