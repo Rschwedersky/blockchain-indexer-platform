@@ -1,0 +1,111 @@
+services:
+  kafka:
+    image: apache/kafka-native:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # 1. Define the interfaces
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+
+      # 2. Tell Kafka how to map those names to actual protocols (The Fix!)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+      # 3. Define the addresses sent to clients
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2QkJGMjM0QkZDMDhGN0U1QkQ=
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "9092" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-blockchain
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092 # Use the INTERNAL listener name/port
+      KAFKA_CLUSTERS_0_METRICS_PORT: 9997 # Optional
+    depends_on:
+      kafka:
+        condition: service_healthy # This waits for your nc check to pass
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: blockchain_indexer
+      POSTGRES_USER: indexer_user
+      POSTGRES_PASSWORD: secure_password # mude para algo forte em prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U indexer_user -d blockchain_indexer" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # === Your services - uncomment one by one as you implement them ===
+
+  ingestor:
+    build:
+      context: . # ← root directory (includes pyproject.toml, uv.lock, src/)
+      dockerfile: src/ingestor/Dockerfile # ← path to Dockerfile inside src/ingestor/
+    container_name: ingestor
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      PYTHONUNBUFFERED: 1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ETHEREUM_RPC: ${ETHEREUM_RPC} # from .env
+    restart: unless-stopped
+  # normalizer:                               # Normalizes events, produces to 'normalized-events'
+  #   build: ./src/normalizer
+  #   container_name: normalizer
+  #   depends_on:
+  #     - kafka
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   restart: unless-stopped
+
+  # decoder:                                  # Decodes ERC20/ERC721 transfers
+  #   build: ./src/decoder
+  #   container_name: decoder
+  #   depends_on:
+  #     - kafka
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #   restart: unless-stopped
+
+  # sink:                                     # Future: writes enriched data to Postgres (uncomment when ready)
+  #   build: ./src/sink  # or add to one of the above services
+  #   depends_on:
+  #     - kafka
+  #     - postgres
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_DB: blockchain_indexer
+  #     POSTGRES_USER: indexer_user
+  #     POSTGRES_PASSWORD: secure_password
+  #   restart: unless-stopped
+
+volumes:
+  kafka_data:
+  postgres_data:
