@@ -12,8 +12,31 @@ w3 = Web3()  # for decoding only
 
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
-ERC20_ABI = [...]  # paste the ERC20_TRANSFER_ABI dict from earlier
-ERC721_ABI = [...]  # paste ERC721_TRANSFER_ABI
+ERC20_TRANSFER_ABI = [
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "name": "from", "type": "address"},
+            {"indexed": True, "name": "to", "type": "address"},
+            {"indexed": False, "name": "value", "type": "uint256"},
+        ],
+        "name": "Transfer",
+        "type": "event",
+    }
+]
+
+ERC721_TRANSFER_ABI = [
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "name": "from", "type": "address"},
+            {"indexed": True, "name": "to", "type": "address"},
+            {"indexed": True, "name": "tokenId", "type": "uint256"},
+        ],
+        "name": "Transfer",
+        "type": "event",
+    }
+]  ###TODO: Add ERC1155 if needed  ABIManager
 
 consumer = KafkaConsumer(
     "normalized-events",
@@ -27,21 +50,28 @@ producer = KafkaProducer(
     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
     value_serializer=lambda v: json.dumps(v).encode("utf-8"),
 )
-
+print("🚀 Decoder iniciado. Conectando ao Kafka...")
 for msg in consumer:
+    print(
+        f"Received normalized event: {msg.value['transaction_hash'][:10]}... log {msg.value['log_index']}"
+    )
     event = msg.value
 
     if not event.get("topics") or event["topics"][0] != TRANSFER_TOPIC:
         continue
 
     try:
-        decoded = w3.eth.abi.decode_log(ERC20_ABI, event["data"], event["topics"])
+        decoded = w3.eth.abi.decode_log(
+            ERC20_TRANSFER_ABI, event["data"], event["topics"]
+        )
         token_type = "ERC20"
         value = str(decoded["value"])
         token_id = None
     except ABIEventNotFound:
         if len(event["topics"]) == 4:
-            decoded = w3.eth.abi.decode_log(ERC721_ABI, event["data"], event["topics"])
+            decoded = w3.eth.abi.decode_log(
+                ERC721_TRANSFER_ABI, event["data"], event["topics"]
+            )
             token_type = "ERC721"
             value = None
             token_id = str(decoded["tokenId"])

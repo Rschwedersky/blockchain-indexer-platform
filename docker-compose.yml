@@ -75,24 +75,33 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ETHEREUM_RPC: ${ETHEREUM_RPC} # from .env
     restart: unless-stopped
-  # normalizer:                               # Normalizes events, produces to 'normalized-events'
-  #   build: ./src/normalizer
-  #   container_name: normalizer
-  #   depends_on:
-  #     - kafka
-  #   environment:
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #   restart: unless-stopped
+  normalizer:
+    # Decodes ERC20/ERC721 transfers
+    build:
+      context: .
+      dockerfile: ./src/normalizer/Dockerfile
+    container_name: normalizer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      PYTHONUNBUFFERED: 1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    restart: unless-stopped
 
-  # decoder:                                  # Decodes ERC20/ERC721 transfers
-  #   build: ./src/decoder
-  #   container_name: decoder
-  #   depends_on:
-  #     - kafka
-  #   environment:
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #   restart: unless-stopped
-
+  decoder:
+    # Decodes ERC20/ERC721 transfers
+    build:
+      context: .
+      dockerfile: ./src/decoder/Dockerfile
+    container_name: decoder
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      PYTHONUNBUFFERED: 1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    restart: unless-stopped
   # sink:                                     # Future: writes enriched data to Postgres (uncomment when ready)
   #   build: ./src/sink  # or add to one of the above services
   #   depends_on:
