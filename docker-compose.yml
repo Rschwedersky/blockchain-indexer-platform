@@ -43,6 +43,21 @@ services:
     depends_on:
       kafka:
         condition: service_healthy # This waits for your nc check to pass
+
+  redis:
+    image: redis:7-alpine # Leve (~10-20 MB), estável, versão 7 atual
+    container_name: redis
+    ports:
+      - "6379:6379" # Expor para debug local (opcional)
+    volumes:
+      - redis_data:/data # Persistência simples (opcional, mas recomendado)
+    command: redis-server --save 60 1 --loglevel warning # Salva a cada 60s se 1 chave mudar
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   postgres:
     image: postgres:16-alpine
     container_name: postgres
@@ -60,6 +75,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   # === Your services - uncomment one by one as you implement them ===
 
   ingestor:
@@ -89,8 +105,18 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     restart: unless-stopped
 
+  kafka-init:
+    image: apache/kafka-native:latest
+    command: >
+      sh -c "
+        kafka-topics.sh --create --topic raw-logs --bootstrap-server kafka:9092 --partitions 4 --replication-factor 1 &&
+        kafka-topics.sh --create --topic token-transfers-enriched --bootstrap-server kafka:9092 --partitions 4 --replication-factor 1
+      "
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   decoder:
-    # Decodes ERC20/ERC721 transfers
     build:
       context: .
       dockerfile: ./src/decoder/Dockerfile
@@ -98,9 +124,32 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      redis:
+        # ← only the real service name
+        condition: service_healthy # ← optional but good
     environment:
+      # ← all env vars go here
       PYTHONUNBUFFERED: 1
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_HOST: redis # ← correct place
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
+    restart: unless-stopped
+
+  ai-collector:
+    build:
+      context: .
+      dockerfile: ./src/ai_collector/Dockerfile
+    container_name: ai-collector
+    depends_on:
+      redis:
+        # ← only the real service name
+        condition: service_healthy # ← optional but good
+    environment:
+      # ← all env vars go here
+      PYTHONUNBUFFERED: 1
+      REDIS_HOST: redis # ← correct place
+      ETHEREUM_RPC: ${ETHEREUM_RPC} # from .env
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
     restart: unless-stopped
   # sink:                                     # Future: writes enriched data to Postgres (uncomment when ready)
   #   build: ./src/sink  # or add to one of the above services
@@ -117,4 +166,5 @@ services:
 
 volumes:
   kafka_data:
+  redis_data:
   postgres_data:
