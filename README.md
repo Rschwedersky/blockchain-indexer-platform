@@ -30,20 +30,22 @@ Ethereum RPC → Ingestor → raw-logs (Kafka) → Normalizer → normalized-eve
 
 ## Fluxo Completo do Pipeline (Ingestão → Decodificação → Armazenamento)
 
-| Etapa | Serviço/Componente          | Responsabilidade                                                                 | Entrada                          | Saída / Próximo Tópico           | Usa LLM? | Status Atual |
-|-------|-----------------------------|----------------------------------------------------------------------------------|----------------------------------|----------------------------------|----------|--------------|
-| 1     | Ingestor                    | Conecta ao RPC Ethereum, escuta blocos novos, coleta logs crus                  | Ethereum RPC (Infura/Alchemy)    | Kafka: `raw-logs`                | Não      | ✅ Funcional  |
-| 2     | Kafka (raw-logs)            | Fila de eventos crus (logs sem decodificação)                                   | Ingestor                         | Normalizer / Decoder             | Não      | ✅ KRaft      |
-| 3     | Normalizer                  | Padroniza campos (chain_id, timestamp, endereço lower, topics como strings)     | Kafka: `raw-logs`                | Kafka: `normalized-events`       | Não      | Em progresso |
-| 4     | Decoder                     | Recebe logs normalizados e inicia cascata de ABI                                | Kafka: `normalized-events`       | Kafka: `token-transfers-enriched` | Não (ainda) | ✅ Funcional  |
-| 5     | ABIManager (cascata nível 1)| Primeiro nível: verifica cache no Redis                                         | Endereço do contrato             | ABI do cache ou próximo nível    | Não      | ✅ Integrado  |
-| 6     | ABIManager (nível 2)        | Segundo nível: consulta Etherscan API (contratos verificados)                   | Endereço + Etherscan API Key     | ABI completo ou próximo nível    | Não      | ✅ Funcional  |
-| 7     | ABIManager (nível 3)        | Terceiro nível: consulta 4byte.directory (só seletores/event signatures)        | Endereço                         | ABI parcial (eventos conhecidos) | Não      | Pendente     |
-| 8     | ABIManager (nível 4 – LLM)  | Último recurso: usa LLM para tentar inferir ABI a partir do bytecode            | Bytecode do contrato (via RPC)   | ABI estimado ou "não decodificável" | **Sim**  | Pendente     |
-| 9     | Decoder (fallback)          | Se nenhum ABI foi encontrado, aplica fallback hardcoded para Transfer ERC20/721 | Log cru                          | Evento Transfer básico           | Não      | ✅ Funcional  |
-| 10    | Kafka (enriched)            | Fila de eventos já decodados/enriquecidos                                      | Decoder                          | Sink                             | Não      | ✅           |
-| 11    | Sink                        | Consome eventos enriquecidos e insere no PostgreSQL (bulk insert)               | Kafka: `token-transfers-enriched`| PostgreSQL (tabelas)             | Não      | Pendente     |
-| 12    | PostgreSQL                  | Armazena dados persistentes para consultas analíticas e API                     | Sink                             | API / Dashboard / Analytics      | Não      | ✅ Pronto    |
+## Fluxo Completo do Pipeline (Ingestão → Decodificação → Armazenamento)
+
+| Etapa | Serviço/Componente          | Responsabilidade                                                                 | Entrada                          | Saída / Próximo Tópico           | Status Atual |
+|-------|-----------------------------|----------------------------------------------------------------------------------|----------------------------------|----------------------------------|--------------|
+| 1     | Ingestor                    | Conecta ao RPC Ethereum, escuta blocos novos, coleta logs crus                  | Ethereum RPC (Infura/Alchemy)    | Kafka: `raw-logs`                | ✅ Funcional  |
+| 2     | Kafka (raw-logs)            | Fila de eventos crus (logs sem decodificação)                                   | Ingestor                         | Normalizer / Decoder             | ✅ KRaft      |
+| 3     | Normalizer                  | Padroniza campos (chain_id, timestamp, endereço lower, topics como strings)     | Kafka: `raw-logs`                | Kafka: `normalized-events`       | Em progresso |
+| 4     | Decoder                     | Recebe logs normalizados e inicia cascata de ABI                                | Kafka: `normalized-events`       | Kafka: `token-transfers-enriched` | ✅ Funcional  |
+| 5     | ABIManager (nível 1)        | Verifica cache no Redis                                                         | Endereço do contrato             | ABI do cache ou próximo nível    | ✅ Integrado  |
+| 6     | ABIManager (nível 2)        | Consulta Etherscan API (contratos verificados)                                  | Endereço + Etherscan API Key     | ABI completo ou próximo nível    | ✅ Funcional  |
+| 7     | ABIManager (nível 3)        | Consulta 4byte.directory (só seletores/event signatures)                        | Endereço                         | ABI parcial (eventos conhecidos) | Pendente     |
+| 8     | ABIManager (nível 4)        | Último recurso: tenta inferir ABI a partir do bytecode (futuro LLM)             | Bytecode do contrato (via RPC)   | ABI estimado ou "não decodificável" | Pendente     |
+| 9     | Decoder (fallback)          | Se nenhum ABI foi encontrado, aplica fallback hardcoded para Transfer ERC20/721 | Log cru                          | Evento Transfer básico           | ✅ Funcional  |
+| 10    | Kafka (enriched)            | Fila de eventos já decodados/enriquecidos                                      | Decoder                          | Sink                             | ✅           |
+| 11    | Sink                        | Consome eventos enriquecidos e insere no PostgreSQL (bulk insert)               | Kafka: `token-transfers-enriched`| PostgreSQL (tabelas)             | Pendente     |
+| 12    | PostgreSQL                  | Armazena dados persistentes para consultas analíticas e API                     | Sink                             | API / Dashboard / Analytics      | ✅ Pronto    |
 
 **Onde o LLM entra?**
 Somente no **nível 4 da cascata** (ABIManager) — quando todos os níveis anteriores falharam (sem cache, sem verificação no Etherscan, sem assinatura no 4byte).
