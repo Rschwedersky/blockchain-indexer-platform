@@ -46,26 +46,32 @@ Ethereum RPC → Ingestor → raw-logs (Kafka) → Normalizer → normalized-eve
    git clone https://github.com/Rschwedersky/blockchain-indexer-platform.git
    cd blockchain-indexer-platform
 
-2. Crie o arquivo .env na raizenv
+2. Crie o arquivo .env na raiz .env
+    ```bash
     ETHEREUM_RPC=https://mainnet.infura.io/v3/SUA_CHAVE_INFURA
     ETHERSCAN_API_KEY=SUA_CHAVE_ETHERSCAN
 
 3. Suba os serviços base
+    ```bash
     docker compose up -d kafka redis postgres
 
 4. Inicie os serviços ativos
+    ```bash
     docker compose up -d --build ingestor
     docker compose up -d --build decoder
 
 ## Monitoramento
 
 - Ver status dos containers
+    ```bash
     docker compose ps
 
 - Ver logs do decoder
+    ```bash
     docker compose logs -f decoder
 
 - Consumir mensagens decodadas
+    ```bash
     docker exec -it kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic token-transfers-enriched --from-beginning --max-messages 5
 
 ## Roadmap
