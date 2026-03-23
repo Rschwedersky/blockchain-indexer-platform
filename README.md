@@ -45,7 +45,7 @@ Ethereum RPC → Ingestor → raw-logs (Kafka) → Normalizer → normalized-eve
 | 9     | Decoder (fallback)          | Se nenhum ABI foi encontrado, aplica fallback hardcoded para Transfer ERC20/721 | Log cru                          | Evento Transfer básico           | ✅ Funcional  |
 | 10    | Kafka (enriched)            | Fila de eventos já decodados/enriquecidos                                      | Decoder                          | Sink                             | ✅           |
 | 11    | Sink                        | Consome eventos enriquecidos e insere no PostgreSQL (bulk insert)               | Kafka: `token-transfers-enriched`| PostgreSQL (tabelas)             | Pendente     |
-| 12    | PostgreSQL                  | Armazena dados persistentes para consultas analíticas e API                     | Sink                             | API / Dashboard / Analytics      | ✅ Pronto    |
+| 12    | PostgreSQL                  | Armazena dados persistentes para consultas analíticas e API                     | Sink                             | API / Dashboard / Analytics      | Pendente   |
 
 **Onde o LLM entra?**
 Somente no **nível 4 da cascata** (ABIManager) — quando todos os níveis anteriores falharam (sem cache, sem verificação no Etherscan, sem assinatura no 4byte).
